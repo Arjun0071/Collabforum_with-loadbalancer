@@ -1,0 +1,91 @@
+---
+- name: Configure  Django Server
+  hosts: webserver
+  become: true
+  vars:
+    - django_project_dir: /root/forum
+    - django_project_destination: /root/
+
+  tasks:
+    - name: Install required packages
+      become: yes
+      package:
+              name: "{{ item }}"
+              state: present
+      with_items:
+              - python3-pip
+
+    - name: Install Django REST Framework
+      command: python3 -m pip install djangorestframework 
+
+    - name: Install Django
+      command: pip3 install django
+
+    - name: Upgrade Pip
+      command: python3 -m pip install --upgrade pip
+
+    - name: Upgrade Pillow
+      command: python3 -m pip install --upgrade Pillow
+
+  
+    - name: Install psycopg2
+      command: python3 -m pip install psycopg2
+
+    - name: Install psycopg2-binary
+      command: pip install psycopg2-binary 
+
+    - name: Copy Django project
+      copy:
+        src: "{{ django_project_dir }}"
+        dest: "{{ django_project_destination }}"
+        owner: root
+        group: root
+        mode: 0644
+
+
+    - name: Copy django.service file to slave node
+      copy:
+        src: /etc/systemd/system/django.service  
+        dest: /etc/systemd/system/
+        owner: root
+        group: root
+        mode: 0644
+      notify:
+        - Reload systemd
+ 
+    - name: Start Django Server
+      systemd:
+        name: django
+        state: started
+        enabled: yes
+      become: true
+  
+  handlers:
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+      become: true
+     
+- hosts: loadbalancer
+  vars:
+    - haproxy_config_file: /etc/haproxy/haproxy.cfg
+
+  tasks:
+    - name: Installing haproxy
+      package:
+         name: haproxy
+         state: present
+
+    - name: Copy HAProxy Config File
+      template:
+        src: /etc/haproxy/haproxy.cfg
+        dest: "{{ haproxy_config_file }}"
+        owner: root
+        group: root
+        mode: 0644
+       
+    - name: Starting HAProxy Service
+      service:
+        name: haproxy
+        state: restarted
+
